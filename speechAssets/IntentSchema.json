@@ -1,0 +1,37 @@
+{
+  "intents": [
+    {
+      "slots": [
+        {
+          "name": "Answer",
+          "type": "AnswerOptions"
+        }
+      ],
+      "intent": "AnswerIntent"
+    },
+    {
+      "slots":[
+        {
+          "name": "Subject",
+          "type": "Subjects"
+        }
+      ],
+      "intent": "QuestionIntent"
+    },
+    {
+      "intent": "SubjectIntent"
+    },
+    {
+      "intent": "AMAZON.YesIntent"
+    },
+    {
+      "intent": "AMAZON.NoIntent"
+    },
+    {
+      "intent": "AMAZON.StopIntent"
+    },
+    {
+      "intent": "AMAZON.CancelIntent"
+    }
+  ]
+}
