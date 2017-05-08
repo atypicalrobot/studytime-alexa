@@ -17,7 +17,7 @@ var newSessionHandlers = {
      // This will short-cut any incoming intent or launch requests and route them to this handler.
     'NewSession': function() {
         this.handler.state = states.STARTMODE;
-        this.emit(':ask', 'Welcome to study time. Say new to start.', 'say new.');
+        this.emit(':askWithLinkAccountCard', 'Welcome to study time. Say new to start or exit to leave.', 'say new or exit.');
     }
 
 };
@@ -30,6 +30,11 @@ var subjectHandlers = Alexa.CreateStateHandler(states.STARTMODE, {
         console.log(this.handler.state);
         this.attributes.qid = 0;
         this.emit(':ask', 'What subject would you like to answer questions on? English, Maths, or Science', 'English, Maths, or Science?');
+    },
+
+    'Unhandled': function() {
+        var message = 'Sorry I did not understand. Please say new to start a new quiz.';
+        this.emit(':ask', message, message);
     }
 
 });
@@ -65,7 +70,7 @@ var questionHandlers = Alexa.CreateStateHandler(states.QUESTIONMODE, {
                 var responseData = JSON.parse(response);
                 // Check if we have correct data, If not create an error speech out to try again.
                 if (responseData == null) {
-                    output = "There was a problem with getting data please try again";
+                    output = "There was a problem fetching question data, please try again";
                 }
                 else {
                     this.attributes.questions = responseData.questions;
@@ -83,6 +88,11 @@ var questionHandlers = Alexa.CreateStateHandler(states.QUESTIONMODE, {
             this.emit(':askWithCard', this.attributes['answerOutput'] + output, cardTitle, cardContent);
         }
 
+    },
+
+    'Unhandled': function() {
+        var message = 'Sorry I did not understand. Please say either English, Maths or Science.';
+        this.emit(':ask', message, message);
     }
 
  });
@@ -117,9 +127,20 @@ var answerHandlers = Alexa.CreateStateHandler(states.ANSWERMODE, {
         console.log('Incrementing qid')
         this.attributes.qid += 1;
         // this.emit(':tell', result + ' ' + question.answer.answers);
-        this.attributes['answerOutput'] = result + ' ' + question.answer.answers + ' <break time="0.2s"/> next question' 
+        this.attributes['answerOutput'] = result + ' ' + question.answer.answers + ' <break time="0.2s"/> next question <break time="0.2s"/>' 
         console.log('AnswerIntent Emitting.')
         this.emitWithState('QuestionIntent');
+    },
+
+    'AMAZON.RepeatIntent': function() {
+        var qid = this.attributes.qid;
+        var question = this.attributes.questions[qid];
+        this.emitWithState('QuestionIntent');
+    },
+
+    'Unhandled': function() {
+        var message = 'Sorry I did not understand. Please say either A, B, C or D.';
+        this.emit(':ask', message, message);
     }
 
 });
