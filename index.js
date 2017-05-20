@@ -1,13 +1,18 @@
 var Alexa = require('alexa-sdk');
-var http = require('http');
+var https = require('https');
 
 var states = {  //
     ANSWERMODE: '_ANSWERMODE', // User is trying to answer a question
     QUESTIONMODE: '_QUESTIONMODE', // Alexa asks the user the question
-    STARTMODE: '_STARTMODE'  // Prompt the user to start or restart the game.
+    STARTMODE: '_STARTMODE',  // Prompt the user to start or restart the game.
     ENDMODE: '_ENDMODE'  // Prompt the user to restart / exit at the end of the game
 };
 
+var subjectMap = {
+    'english': 2,
+    'maths': 3,
+    'science': 4
+}
 var letters = ['A', 'B', 'C', 'D'];
 var correct_speechcons = [
     'ace!',
@@ -24,7 +29,6 @@ var correct_speechcons = [
     'hurrah',
     'hurray',
     'huzzah',
-    'jiminy cricket',
     'kablam!',
     'kaboom!',
     'kapow!',
@@ -46,8 +50,28 @@ var correct_speechcons = [
     'you bet!',
     'yipee!'
 ];
-var correct_cheering = ['great answer!', 'that is correct!', 'you are right!','you are good at this!', 'look at you go!', 'correct!', 'affirmative!'];
-var wrong_cheering = ['Aww, sorry.', 'Sorry, but the answer is incorrect.', 'Sorry, wrong answer.', 'Sorry, you will get it next time.', 'Sorry, better luck next time.'];
+var wrong_speechcons = [
+    'as if!',
+    'aw!',
+    'aw man!',
+    'blah!',
+    'blarg!',
+    'blast!',
+    'bother!',
+    'cheer up!',
+    'oh dear!',
+    'oh my!',
+    'oh snap!',
+    'oof!',
+    'ouch!',
+    'there there!',
+    'uh oh!',
+    'whoops!'
+
+];
+var correct_cheering = ['great answer!', 'that is correct!', 'you are right!','you are good at this!', 'look at you go!', 'correct!', 'affirmative!', 'you will be a master in no time!', 'keep it up!', 'you are smashing it!'];
+
+var wrong_cheering = ['sorry, that is not correct!', 'close but nope!', 'that is nearly the right answer!', 'better luck next time!', 'hard luck, that is not it!'];
 
 
 var newSessionHandlers = {
@@ -94,17 +118,17 @@ function speakQuestion(question, choices) {
 var questionHandlers = Alexa.CreateStateHandler(states.QUESTIONMODE, {
     //this function fetches a question from an api and displays it
     'QuestionIntent': function () {
-        // var intentObj = this.event.request.intent;
-        // var subject = intentObj.slots.Subject.value;
-        // console.log(subject)
+        var intentObj = this.event.request.intent;
         var cardTitle = "Question";
         var cardContent = "Data provided by Open TB\n\n";
         var qid = this.attributes.qid;
         console.log('QuestionIntent triggered.');
         var output;
         if (qid === 0) {
+            var subject = intentObj.slots.Subject.value;
+            console.log(subject);
             console.log('Fetching questions as this is the first run.');
-            httpGet('/api/multiplechoicequiz/1/', function (response) {
+            httpGet('/api/multiplechoicequiz/?subject=' + subjectMap[subject.toString().toLowerCase()], this.event.session.user.accessToken, function (response) {
                 // Parse the response into a JSON object ready to be formatted.
                 console.log('RESPONSE: ' + response);
                 // try {
@@ -118,7 +142,7 @@ var questionHandlers = Alexa.CreateStateHandler(states.QUESTIONMODE, {
                     output = "There was a problem fetching question data, please try again";
                 }
                 else {
-                    this.attributes.questions = responseData.questions;
+                    this.attributes.questions = responseData[Math.floor(Math.random() * responseData.length)].questions;
                     var question = this.attributes.questions[qid];
                     output = speakQuestion(question, question.answer.choices);
                     console.log('Setting state to ANSWERMODE');
@@ -169,24 +193,27 @@ var answerHandlers = Alexa.CreateStateHandler(states.ANSWERMODE, {
         var randCorrectSpeechconTmp = correct_speechcons[Math.floor(Math.random() * correct_speechcons.length)];
         var randCorrectSpeechcon = '<say-as interpret-as="interjection">' + randCorrectSpeechconTmp + '!</say-as>, ';
         var randWrong = wrong_cheering[Math.floor(Math.random() * wrong_cheering.length)];
+        var randWrongSpeechconTmp = wrong_speechcons[Math.floor(Math.random() * wrong_speechcons.length)];
+        var randWrongSpeechcon = '<say-as interpret-as="interjection">' + randWrongSpeechconTmp + '!</say-as>, ';
         console.log('correct answer: ' + question.answer.answers[0]);
         console.log('choices: ' + question.answer.choices);
-        // correctAnswerIndex(correctAnswer, choices) returns index.
-        var correctIndex = correctAnswerIndex(question.answer.answers[0], question.answer.choices);
-        console.log(correctIndex);
-        // letters - list of A, B, C or D
-        var correctLetter = letters[correctIndex];
+
+        var correctAnswer = answerFromLetter(question.answer.answers[0], question.answer.choices);
+        console.log(correctAnswer);
+        var correctLetter = question.answer.answers[0];
         console.log(correctLetter);
         var result = randWrong;
         if(correctLetter.toString().toLowerCase() == answer.toString().toLowerCase()){
             result = randCorrectSpeechcon + randCorrect;
+        } else {
+            result = randWrongSpeechcon + randWrong;
         }
         console.log('Setting state to QUESTIONMODE');
         this.handler.state = states.QUESTIONMODE;
         console.log('Incrementing qid');
         this.attributes.qid += 1;
         // this.emit(':tell', result + ' ' + question.answer.answers);
-        this.attributes.answerOutput = result + ' the answer is ' + question.answer.answers + '. <break time="0.2s"/>';
+        this.attributes.answerOutput = result + ' the answer is ' + correctLetter + ', ' + correctAnswer + '. <break time="0.2s"/>';
         console.log('AnswerIntent Emitting.');
         this.emitWithState('QuestionIntent');
     },
@@ -223,22 +250,26 @@ var endgameHandlers = Alexa.CreateStateHandler(states.ENDMODE, {
 });
 
 
-function httpGet(query, callback) {
-  console.log("QUERY: " + 'ad1388ed.ngrok.io' + query);
+function httpGet(query, accessToken, callback) {
+  console.log("QUERY: " + 'studytime.xyz' + query);
 
     var options = {
       //http://api.nytimes.com/svc/search/v2/articlesearch.json?q=seattle&sort=newest&api-key=
-        host: 'ad1388ed.ngrok.io',
+        host: 'studytime.xyz',
         path: query,
-        method: 'GET'
+        method: 'GET',
+        headers: {
+            'Authorization': 'Bearer ' + accessToken
+        }
     };
 
-    var req = http.request(options, (res) => {
+    var req = https.request(options, (res) => {
         var body = '';
         res.on('data', (d) => {
             body += d;
         });
         res.on('end', function () {
+            console.log(body);
             callback(body);
         });
     });
@@ -249,15 +280,23 @@ function httpGet(query, callback) {
     });
 }
 
-function correctAnswerIndex(answer, choices) {
-    var retValue;
-    choices.forEach(function (choice, i) {
-        if (answer.toString() == choice.toString() ) {
-            console.log('correct index: ' + i);
-            retValue = i;
-        }
-    });
-    return retValue;
+function answerFromLetter(rawLetter, choices) {
+    var letter = rawLetter.toString().toLowerCase();
+    if (letter == 'a') {
+        return choices[0]
+    }
+    else if (letter == 'b') {
+        return choices[1]
+    }
+    else if (letter == 'c') {
+        return choices[2]
+    }
+    else if (letter == 'd') {
+        return choices[3]
+    }
+    else {
+        return null;
+    }
 }
 
  exports.handler = function(event, context, callback) {
