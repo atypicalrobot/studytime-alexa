@@ -9,9 +9,9 @@ var states = {  //
 };
 
 var subjectMap = {
-    'english': 2,
-    'maths': 3,
-    'science': 4
+    'english': 3,
+    'maths': 2,
+    'science': 1
 }
 var letters = ['A', 'B', 'C', 'D'];
 var correct_speechcons = [
@@ -73,6 +73,17 @@ var correct_cheering = ['great answer!', 'that is correct!', 'you are right!','y
 
 var wrong_cheering = ['sorry, that is not correct!', 'close but nope!', 'that is nearly the right answer!', 'better luck next time!', 'hard luck, that is not it!'];
 
+var end_speechcons = [
+    'well well!',
+    'voila!',
+    'spoiler alert!',
+    'splash!',
+    'righto!',
+    'dun dun dun!',
+    'cheer up!',
+    'all righty!',
+    'abracadabra!'
+]
 
 var newSessionHandlers = {
 
@@ -125,6 +136,8 @@ var questionHandlers = Alexa.CreateStateHandler(states.QUESTIONMODE, {
         console.log('QuestionIntent triggered.');
         var output;
         if (qid === 0) {
+            this.attributes.correct = 0;
+            this.attributes.incorrect = 0;
             var subject = intentObj.slots.Subject.value;
             console.log(subject);
             console.log('Fetching questions as this is the first run.');
@@ -161,7 +174,10 @@ var questionHandlers = Alexa.CreateStateHandler(states.QUESTIONMODE, {
                 this.emit(':askWithCard', this.attributes.answerOutput + output, cardTitle, cardContent);
 
             } else {
-                output = this.attributes.answerOutput + ' you have reached the end of the quiz, say new to play again or exit to leave.';
+                var randEndSpeechconTmp = end_speechcons[Math.floor(Math.random() * end_speechcons.length)];
+                var randEndSpeechcon = '<say-as interpret-as="interjection">' + randEndSpeechconTmp + '!</say-as>, ';
+                var scoreOutput = 'You got ' + this.attributes.correct + ' correct and ' + this.attributes.incorrect + ' incorrect.';
+                output = this.attributes.answerOutput + randEndSpeechcon + ' you have reached the end of the quiz, ' + scoreOutput + ' Say new to play again or exit to leave.';
                 console.log('Setting state to ENDMODE');
                 this.handler.state = states.ENDMODE;
                 this.emit(':askWithCard', output, cardTitle, cardContent);
@@ -203,11 +219,20 @@ var answerHandlers = Alexa.CreateStateHandler(states.ANSWERMODE, {
         var correctLetter = question.answer.answers[0];
         console.log(correctLetter);
         var result = randWrong;
+        var endpoint = null;
         if(correctLetter.toString().toLowerCase() == answer.toString().toLowerCase()){
             result = randCorrectSpeechcon + randCorrect;
+            this.attributes.correct = this.attributes.correct + 1;
+            endpoint = '/correct/';
         } else {
             result = randWrongSpeechcon + randWrong;
+            this.attributes.incorrect = this.attributes.incorrect + 1;
+            endpoint = /incorrect/;
         }
+        httpGet('/api/multiplechoicequestion/' + question.id + endpoint, this.event.session.user.accessToken, function (response) {
+            // Parse the response into a JSON object ready to be formatted.
+            console.log('RESPONSE: ' + response);
+        }.bind(this));
         console.log('Setting state to QUESTIONMODE');
         this.handler.state = states.QUESTIONMODE;
         console.log('Incrementing qid');
